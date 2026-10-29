@@ -209,6 +209,7 @@
     }
     .plat::before { content: "> "; opacity: 0.6; }
     a.plat:hover { opacity: 0.85; }
+    .ms { display: contents; }
     .m { color: var(--muted); }
     .m b { color: var(--text); font-weight: 500; }
 
@@ -223,12 +224,75 @@
     }
     .footer a { color: inherit; }
 
+    /* tablet and desktop: wider card, followers and totals side by side, posts as a grid of cards */
+    @media (min-width: 600px) {
+      body { padding: 48px 24px; }
+      .card { max-width: 1200px; padding: 36px 36px 28px; }
+      .platforms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      /* seven totals in a 4x2 grid: views takes the first column on both rows */
+      .totals { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .stat { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+      .stat b { font-size: clamp(22px, 3.6vw, 26px); }
+      .stat:first-child { grid-row: span 2; }
+      .posts {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+        gap: 14px;
+      }
+      .post, .post:first-of-type {
+        grid-template-columns: 48px minmax(0, 1fr);
+        gap: 2px 12px;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        align-content: start;
+      }
+      /* swatch beside title and date only; platform rows use the card's full width */
+      .pbody { display: contents; }
+      .swatch { width: 48px; height: 48px; grid-row: span 2; }
+      .verse { font-size: 21px; align-self: end; }
+      .date { margin: 0 0 4px; align-self: start; }
+      .row {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: baseline;
+        gap: 0 10px;
+        margin-top: 6px;
+      }
+      .ms { display: flex; flex-wrap: wrap; gap: 2px 10px; min-width: 0; }
+      .plat { white-space: nowrap; }
+    }
+    @media (min-width: 900px) {
+      .top {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 32px;
+        align-items: stretch;
+      }
+      .sec-totals { display: flex; flex-direction: column; }
+      /* beside the tiles: views fills the first column, the other six sit in a 2x3 block */
+      .totals { flex: 1; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 1fr; }
+      .stat:first-child { grid-row: span 3; }
+      .stat { padding: 8px 12px; }
+      .tile { min-height: 200px; }
+      h2.posts-label { margin-top: 36px; }
+    }
+    @media (min-width: 1200px) {
+      .posts { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+    }
+    @media (min-width: 1400px) {
+      .card { max-width: 1320px; }
+    }
+
     @media (max-width: 420px) {
       body { padding: 32px 12px; }
       .card { padding: 28px 18px 20px; }
       .chip.big { font-size: 28px; }
       .tile { min-height: 160px; padding: 10px; }
       .chip { font-size: 11px; padding: 4px 7px; }
+      .stat { padding: 10px 8px; }
+      .stat b { font-size: 21px; }  /* six-digit totals fit a third of a phone */
     }
   </style>
 </head>
@@ -240,14 +304,19 @@
     <h1 class="name">soul stats</h1>
     <p class="updated" id="updated">loading…</p>
 
-    <h2>followers</h2>
-    <div class="platforms" id="platforms"></div>
+    <div class="top">
+      <section class="sec-followers">
+        <h2>followers</h2>
+        <div class="platforms" id="platforms"></div>
+      </section>
+      <section class="sec-totals">
+        <h2>all posts</h2>
+        <div class="totals" id="totals"></div>
+      </section>
+    </div>
 
-    <h2>all posts</h2>
-    <div class="totals" id="totals"></div>
-
-    <h2>each post</h2>
-    <div id="posts"></div>
+    <h2 class="posts-label">each post</h2>
+    <div class="posts" id="posts"></div>
 
     <p class="note" id="notes"></p>
     <footer class="footer">soul · <a href="/">thesouldevotional.github.io</a></footer>
@@ -333,7 +402,7 @@
       groups.forEach(function (g) {
         var post = el('div', 'post');
         post.appendChild(el('div', 'swatch p-' + (g.palette || 'fog')));
-        var body = el('div');
+        var body = el('div', 'pbody');
         var title = el(g.link ? 'a' : 'span', 'verse', g.verse || 'post');
         if (g.link) { title.href = g.link; title.target = '_blank'; title.rel = 'noopener noreferrer'; }
         body.appendChild(title);
@@ -343,8 +412,11 @@
           var chip = el(p.link ? 'a' : 'span', 'plat', p.platform);
           if (p.link) { chip.href = p.link; chip.target = '_blank'; chip.rel = 'noopener noreferrer'; }
           row.appendChild(chip);
+          // metrics sit in their own box so wide layouts can wrap them beside the chip
+          var ms = el('span', 'ms');
+          row.appendChild(ms);
           if (p.status !== 'sent') {
-            row.appendChild(el('span', 'm', p.status));
+            ms.appendChild(el('span', 'm', p.status));
           } else {
             var any = false;
             METRICS.forEach(function (m) {
@@ -353,9 +425,9 @@
               var s = el('span', 'm');
               s.appendChild(el('b', null, num(p.metrics[m[0]])));
               s.appendChild(document.createTextNode(' ' + m[1]));
-              row.appendChild(s);
+              ms.appendChild(s);
             });
-            if (!any) row.appendChild(el('span', 'm', 'numbers not in yet'));
+            if (!any) ms.appendChild(el('span', 'm', 'numbers not in yet'));
           }
           body.appendChild(row);
         });
