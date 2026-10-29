@@ -84,6 +84,7 @@ def main():
     now = datetime.now(timezone.utc).isoformat(timespec="minutes")
     mapping = json.loads((HERE / "posts.json").read_text())  # buffer post id -> verse
     by_id = {pid: m for m in mapping for pid in m["buffer"].values()}
+    stories = {m["buffer"].get("instagram_stories") for m in mapping}  # shown as their own row, not counted as posts
 
     followers, notes = {}, []
     for name, fn in [("instagram", instagram_followers), ("tiktok", tiktok_followers)]:
@@ -108,7 +109,7 @@ def main():
         if "likes" not in metrics and "reactions" in metrics:  # TikTok reports likes as reactions
             metrics["likes"] = metrics.pop("reactions")
         posts.append({
-            "platform": p["channelService"], "status": p["status"],
+            "platform": "instagram stories" if p["id"] in stories else p["channelService"], "status": p["status"],
             "date": p["sentAt"] or p["dueAt"], "link": p["externalLink"],
             "verse": m.get("verse"), "verse_link": m.get("verse_link"), "palette": m.get("palette"),
             "metrics": metrics,
