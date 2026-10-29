@@ -6,7 +6,7 @@ Runs in the GitHub Action every 6 hours (and locally for testing):
     BUFFER_API_KEY=... [IG_TOKEN=...] python3 collect.py
 
 - Buffer API: published posts, their links and metrics.
-- Instagram followers: official Instagram API (IG_TOKEN, long-lived token, refreshed on every run).
+- Instagram followers: Graph API through the linked Facebook Page (IG_TOKEN, Page token).
 - TikTok followers: the public profile page (TikTok's own API needs an app review).
 A source that fails keeps its last value from the live data.json, marked stale.
 """
@@ -18,6 +18,7 @@ HERE = Path(__file__).resolve().parent
 SITE = HERE / "site"
 LIVE = "https://thesouldevotional.github.io/stats/data.json"
 ORG = "6ae315866ceae7d1bd911b98"
+IG_USER_ID = "17841442516994255"  # thesouldevotional, via the Facebook Page "Thesouldevotional"
 CHANNELS = {"instagram": "6ae3213d2f1f5ed6480cb106", "tiktok": "6ae321e72f1f5ed6480cb5d9"}
 PROFILES = {"instagram": "https://www.instagram.com/thesouldevotional/",
             "tiktok": "https://www.tiktok.com/@thesouldevotional"}
@@ -55,16 +56,19 @@ def buffer_posts():
 
 
 def instagram_followers():
+    # IG_TOKEN is the token of the Facebook Page linked to the account: it never expires, but Meta stops
+    # its data access ~90 days after Ivana last authorized the app, so that date is reported too
     token = os.environ.get("IG_TOKEN")
     if not token:
         return None, None
-    try:  # extends the 60-day token; needs it to be at least 24 hours old
-        expires = json.loads(get("https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token"
-                                 "&access_token=" + token)).get("expires_in")
+    g = "https://graph.facebook.com/v21.0/"
+    me = json.loads(get(f"{g}{IG_USER_ID}?fields=followers_count&access_token={token}"))
+    try:
+        until = json.loads(get(f"{g}debug_token?input_token={token}&access_token={token}"))["data"]["data_access_expires_at"]
+        left = until - datetime.now(timezone.utc).timestamp() if until else None
     except Exception:
-        expires = None
-    me = json.loads(get("https://graph.instagram.com/me?fields=followers_count,media_count&access_token=" + token))
-    return me["followers_count"], expires
+        left = None
+    return me["followers_count"], left
 
 
 def tiktok_followers():

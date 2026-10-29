@@ -438,7 +438,7 @@
       var notes = [];
       var ig = d.followers.instagram;
       if (!ig) notes.push('instagram followers: not connected yet.');
-      else if (ig.token_days != null && ig.token_days < 15) notes.push('instagram access expires in ' + ig.token_days + ' days.');
+      else if (ig.token_days != null && ig.token_days < 15) notes.push('instagram access expires in ' + ig.token_days + ' days: ask Claude to renew it.');
       (d.notes || []).forEach(function (n) { notes.push(n); });
       document.getElementById('notes').textContent = notes.join(' ');
     }).catch(function () {
