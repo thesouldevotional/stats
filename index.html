@@ -116,6 +116,17 @@
       margin: 28px 0 12px;
     }
     h2::before { content: "// "; }
+    /* platform picker for the totals, styled as part of the heading */
+    h2 select {
+      font: inherit;
+      color: var(--text);
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 2px 6px;
+      margin-left: 2px;
+      cursor: pointer;
+    }
 
     /* platform tiles: dithered background, numbers in chips of that palette */
     .platforms { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
@@ -214,6 +225,19 @@
     .m b { color: var(--text); font-weight: 500; }
 
     .empty, .note { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+    /* legend: closed by default, opens under its heading */
+    .legend { margin-top: 28px; font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .legend summary { cursor: pointer; }
+    .legend summary::before { content: "// "; }
+    .legend dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; margin: 12px 0 0; }
+    .legend dt { color: var(--text); }
+    .legend dd { margin: 0; }
+    .legend h3 { font-size: 12px; font-weight: 400; color: var(--text); margin: 16px 0 0; }
+    @media (max-width: 420px) {
+      .legend dl { grid-template-columns: minmax(0, 1fr); gap: 0; }
+      .legend dd { margin-bottom: 6px; }
+    }
     .note { margin-top: 20px; }
 
     .footer {
@@ -310,13 +334,46 @@
         <div class="platforms" id="platforms"></div>
       </section>
       <section class="sec-totals">
-        <h2>all posts</h2>
+        <h2><label for="totalsFor">totals for</label>
+          <select id="totalsFor">
+            <option value="all">all posts</option>
+            <option value="instagram">instagram</option>
+            <option value="tiktok">tiktok</option>
+          </select></h2>
         <div class="totals" id="totals"></div>
       </section>
     </div>
 
     <h2 class="posts-label">each post</h2>
     <div class="posts" id="posts"></div>
+
+    <details class="legend">
+      <summary>what the numbers mean</summary>
+      <dl>
+        <dt>followers</dt><dd>accounts following the profile now. "last known" means the platform didn't answer at the last update, so the number is the previous one</dd>
+        <dt>posts published</dt><dd>posts that already went out on that platform (stories not included)</dd>
+        <dt>views</dt><dd>how many times the post was watched, repeats included: one person watching three times counts 3</dd>
+        <dt>reach</dt><dd>how many different accounts saw it, each counted once (instagram only)</dd>
+        <dt>likes</dt><dd>hearts on the post</dd>
+        <dt>comments</dt><dd>comments under the post</dd>
+        <dt>shares</dt><dd>times it was sent to someone or reposted</dd>
+        <dt>saves</dt><dd>times someone saved it to look at again (instagram only)</dd>
+        <dt>new follows</dt><dd>people who started following after seeing this post</dd>
+        <dt>–</dt><dd>no number yet, or the platform doesn't give that one</dd>
+      </dl>
+      <h3>instagram stories (the three stories of a post, added together)</h3>
+      <dl>
+        <dt>views</dt><dd>times the stories were watched, all three added up</dd>
+        <dt>reach</dt><dd>different accounts that saw at least one of them</dd>
+        <dt>replies</dt><dd>messages sent in reply to a story</dd>
+        <dt>profile visits</dt><dd>people who opened the profile from a story</dd>
+        <dt>taps forward</dt><dd>skipped ahead to the next story</dd>
+        <dt>taps back</dt><dd>went back to see a story again</dd>
+        <dt>exits</dt><dd>closed the stories and went back to the feed</dd>
+        <dt>swipes away</dt><dd>moved on to another account's stories</dd>
+      </dl>
+      <p>totals add up every published post of the platform chosen above. numbers keep growing for some days after a post goes out; stories are counted only during their 24 hours, and the page keeps the last numbers it saw.</p>
+    </details>
 
     <p class="note" id="notes"></p>
     <footer class="footer">soul · <a href="/">thesouldevotional.github.io</a></footer>
@@ -346,6 +403,11 @@
     // metrics shown, in this order; Buffer only returns the ones each platform reports
     var METRICS = [['views', 'views'], ['reach', 'reach'], ['likes', 'likes'], ['comments', 'comments'],
                    ['shares', 'shares'], ['saves', 'saves'], ['follows', 'new follows']];
+    // stories: no likes or saves; Buffer counts replies as comments
+    var STORY_METRICS = [['views', 'views'], ['reach', 'reach'], ['replies', 'replies'], ['shares', 'shares'],
+                         ['follows', 'new follows'], ['profile_visits', 'profile visits'],
+                         ['tap_forward', 'taps forward'], ['tap_back', 'taps back'], ['tap_exit', 'exits'],
+                         ['swipe_forward', 'swipes away']];
     var PLATFORM = { instagram: 'p-gull', tiktok: 'p-night' };
 
     function el(tag, cls, text) {
@@ -387,16 +449,29 @@
         plat.appendChild(t);
       });
 
-      // totals across every published post
-      var tot = document.getElementById('totals');
-      METRICS.forEach(function (m) {
-        var has = false, sum = 0;
-        sent.forEach(function (p) { if (p.metrics[m[0]] != null) { has = true; sum += p.metrics[m[0]]; } });
-        var s = el('div', 'stat');
-        s.appendChild(el('b', null, has ? num(sum) : '–'));
-        s.appendChild(el('span', null, m[1]));
-        tot.appendChild(s);
+      // totals across the published posts of the chosen platform (stories are not posts)
+      var tot = document.getElementById('totals'), pick = document.getElementById('totalsFor');
+      try { pick.value = localStorage.getItem('totalsFor') || 'all'; } catch (e) {}
+      if (!pick.value) pick.value = 'all';
+      function totals() {
+        tot.textContent = '';
+        METRICS.forEach(function (m) {
+          var has = false, sum = 0;
+          sent.forEach(function (p) {
+            if (p.platform === 'instagram stories' || (pick.value !== 'all' && p.platform !== pick.value)) return;
+            if (p.metrics[m[0]] != null) { has = true; sum += p.metrics[m[0]]; }
+          });
+          var s = el('div', 'stat');
+          s.appendChild(el('b', null, has ? num(sum) : '–'));
+          s.appendChild(el('span', null, m[1]));
+          tot.appendChild(s);
+        });
+      }
+      pick.addEventListener('change', function () {
+        try { localStorage.setItem('totalsFor', pick.value); } catch (e) {}
+        totals();
       });
+      totals();
 
       // one block per verse, a row per platform
       var groups = [], byVerse = {};
@@ -427,7 +502,7 @@
             ms.appendChild(el('span', 'm', p.status));
           } else {
             var any = false;
-            METRICS.forEach(function (m) {
+            (p.platform === 'instagram stories' ? STORY_METRICS : METRICS).forEach(function (m) {
               if (p.metrics[m[0]] == null) return;
               any = true;
               var s = el('span', 'm');

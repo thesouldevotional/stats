@@ -71,6 +71,32 @@ def instagram_followers():
     return me["followers_count"], left
 
 
+def instagram_stories():
+    """Live Instagram stories with their numbers (needs instagram_manage_insights): [(time, metrics)].
+    Instagram keeps story insights only while the story is live (24h), and refuses them under 5 viewers."""
+    token = os.environ.get("IG_TOKEN")
+    if not token:
+        return []
+    g = "https://graph.facebook.com/v21.0/"
+    out = []
+    for s in json.loads(get(f"{g}{IG_USER_ID}/stories?fields=id,timestamp&access_token={token}")).get("data", []):
+        m = {}
+        try:
+            for x in json.loads(get(f"{g}{s['id']}/insights?metric=views,reach,replies,shares,follows,profile_visits"
+                                    f"&access_token={token}"))["data"]:
+                v = (x.get("values") or [{}])[0].get("value", (x.get("total_value") or {}).get("value"))
+                if v is not None:
+                    m[x["name"]] = v
+            nav = json.loads(get(f"{g}{s['id']}/insights?metric=navigation&breakdown=story_navigation_action_type"
+                                 f"&access_token={token}"))["data"][0]
+            for r in nav["total_value"]["breakdowns"][0]["results"]:
+                m[r["dimension_values"][0]] = r["value"]  # tap_forward, tap_back, tap_exit, swipe_forward
+        except Exception:
+            pass
+        out.append((datetime.strptime(s["timestamp"], "%Y-%m-%dT%H:%M:%S%z"), m))
+    return out
+
+
 def tiktok_followers():
     m = re.search(r'"followerCount":(\d+)', get(PROFILES["tiktok"]))
     return int(m.group(1)) if m else None
@@ -102,13 +128,37 @@ def main():
             if expires:
                 followers[name]["token_days"] = round(expires / 86400)
 
+    # a story's numbers can only be read while it is live (24h), so keep the last ones we got
+    kept = {x["id"]: x for x in last.get("posts") or [] if x.get("id") in stories and x.get("metrics")}
+    try:
+        live_stories = instagram_stories()
+    except Exception as e:
+        live_stories = []
+        notes.append(f"instagram stories: {type(e).__name__}")
     posts = []
     for p in buffer_posts():
         m = by_id.get(p["id"], {})
         metrics = {x["type"]: x["value"] for x in p.get("metrics") or []}
         if "likes" not in metrics and "reactions" in metrics:  # TikTok reports likes as reactions
             metrics["likes"] = metrics.pop("reactions")
+        if p["id"] in stories:
+            if "comments" in metrics:  # Buffer calls story replies comments
+                metrics["replies"] = metrics.pop("comments")
+            if p["sentAt"]:  # add Instagram's own numbers for the stories that went up with this post
+                sent = datetime.fromisoformat(p["sentAt"].replace("Z", "+00:00"))
+                ig = {}
+                for at, sm in live_stories:
+                    if abs((at - sent).total_seconds()) < 3600:
+                        for k, v in sm.items():  # reach: people, so the largest; the rest add up across the stories
+                            ig[k] = max(ig.get(k, 0), v) if k == "reach" else ig.get(k, 0) + v
+                metrics.update(ig)  # Instagram's numbers win over Buffer's for the same metric
+        if p["id"] in kept:  # story numbers only grow: a metric missing now, or lower, keeps its last value
+            merged = dict(kept[p["id"]]["metrics"])
+            for k, v in metrics.items():
+                merged[k] = max(v, merged.get(k, v))
+            metrics = merged
         posts.append({
+            "id": p["id"],
             "platform": "instagram stories" if p["id"] in stories else p["channelService"], "status": p["status"],
             "date": p["sentAt"] or p["dueAt"], "link": p["externalLink"],
             "verse": m.get("verse"), "verse_link": m.get("verse_link"), "palette": m.get("palette"),
