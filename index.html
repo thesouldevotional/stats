@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>soul stats</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="assets/avatar.png" />
+  <link rel="apple-touch-icon" href="assets/avatar.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap" rel="stylesheet" />
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('theme');
+        if (stored) document.documentElement.setAttribute('data-theme', stored);
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    :root {
+      --page-bg: #f6ede2;
+      --card-bg: #fffaf3;
+      --text: #2a1a12;
+      --muted: #7d6a5c;
+      --line: #e8dccd;
+      --chip-bg: #2a1a12;
+      --chip-text: #f6ede2;
+      --ring: #c4501a;
+      --shadow: 0 20px 50px -20px rgba(60, 30, 10, 0.28), 0 6px 16px -8px rgba(60, 30, 10, 0.14);
+    }
+    html[data-theme="dark"] {
+      --page-bg: #0f1626;
+      --card-bg: #151d2e;
+      --text: #eae3d3;
+      --muted: #9a9384;
+      --line: #263049;
+      --chip-bg: #eae3d3;
+      --chip-text: #0f1626;
+      --shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.6), 0 6px 16px -8px rgba(0, 0, 0, 0.4);
+    }
+    @media (prefers-color-scheme: dark) {
+      html:not([data-theme="light"]) {
+        --page-bg: #0f1626;
+        --card-bg: #151d2e;
+        --text: #eae3d3;
+        --muted: #9a9384;
+        --line: #263049;
+        --chip-bg: #eae3d3;
+        --chip-text: #0f1626;
+        --shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.6), 0 6px 16px -8px rgba(0, 0, 0, 0.4);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      display: flex;
+      justify-content: center;
+      padding: 56px 16px;
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      color: var(--text);
+      background: var(--page-bg);
+    }
+
+    .card {
+      position: relative;
+      width: 100%;
+      max-width: 560px;
+      background: var(--card-bg);
+      border-radius: 28px;
+      box-shadow: var(--shadow);
+      padding: 32px 28px 24px;
+    }
+
+    .theme-toggle {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: transparent;
+      color: var(--text);
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: block;
+      padding: 3px;
+      background: var(--ring);
+      image-rendering: pixelated;
+    }
+    .name {
+      font-family: 'Newsreader', Georgia, serif;
+      font-weight: 400;
+      font-size: 40px;
+      line-height: 1;
+      margin: 16px 0 8px;
+    }
+    .updated { font-size: 12px; color: var(--muted); margin: 0 0 24px; }
+
+    h2 {
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--muted);
+      margin: 28px 0 12px;
+    }
+    h2::before { content: "// "; }
+
+    /* platform tiles: dithered background, numbers in chips of that palette */
+    .platforms { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+    .tile {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+      min-height: 180px;
+      border-radius: 20px;
+      padding: 12px;
+      text-decoration: none;
+      background-size: cover;
+      background-position: center;
+      image-rendering: pixelated;
+      box-shadow: 0 10px 20px -12px rgba(20, 20, 30, 0.45);
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .tile:hover, .tile:focus-visible {
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 16px 28px -14px rgba(20, 20, 30, 0.55);
+    }
+    .chip {
+      font-size: 12px;
+      line-height: 1.3;
+      padding: 5px 9px;
+      background: var(--l-bg);
+      color: var(--l-fg);
+    }
+    .chip.label::before { content: "> "; opacity: 0.6; }
+    .chip.big {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 34px;
+      line-height: 1;
+      padding: 6px 12px 4px;
+      margin-top: auto;
+    }
+    .badge {
+      position: absolute;
+      top: 9px;
+      right: 12px;
+      font-size: 13px;
+      color: var(--l-bg);
+      text-shadow: 0 0 6px var(--l-fg);
+    }
+    .p-gull  { background-image: url(assets/tile_gull.png);  --l-bg: #2a1a12; --l-fg: #fdb559; }
+    .p-tea   { background-image: url(assets/tile_tea.png);   --l-bg: #ece2da; --l-fg: #6a1a12; }
+    .p-night { background-image: url(assets/tile_night.png); --l-bg: #eae3d3; --l-fg: #0e111a; }
+    .p-rods  { background-image: url(assets/tile_rods.png);  --l-bg: #e6ecdc; --l-fg: #1c2e3a; }
+    .p-plum  { background-image: url(assets/tile_plum.png);  --l-bg: #eadff0; --l-fg: #24172c; }
+    .p-fog   { background-image: url(assets/tile_fog.png);   --l-bg: #1d2630; --l-fg: #dfe4ea; }
+    .p-dawn  { background-image: url(assets/tile_dawn.png);  --l-bg: #1d2228; --l-fg: #e8ecf0; }
+
+    /* totals: label over number, in a simple grid */
+    .totals {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+      padding: 1px 0 0 1px;
+    }
+    .stat { border: 1px solid var(--line); margin: -1px 0 0 -1px; padding: 10px 12px; }
+    .stat b {
+      display: block;
+      font-family: 'Newsreader', Georgia, serif;
+      font-weight: 400;
+      font-size: 26px;
+      line-height: 1.1;
+    }
+    .stat span { font-size: 11px; color: var(--muted); }
+
+    /* posts */
+    .post { display: grid; grid-template-columns: 56px 1fr; gap: 14px; padding: 16px 0; border-top: 1px solid var(--line); }
+    .post:first-of-type { border-top: 0; padding-top: 4px; }
+    .swatch { width: 56px; height: 56px; border-radius: 12px; background-size: cover; image-rendering: pixelated; }
+    .verse {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 22px;
+      line-height: 1.15;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .verse:hover { text-decoration: underline; }
+    .date { font-size: 11px; color: var(--muted); margin: 2px 0 8px; }
+    .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 12px; margin-top: 6px; }
+    .plat {
+      font-size: 11px;
+      padding: 3px 8px;
+      background: var(--chip-bg);
+      color: var(--chip-text);
+      text-decoration: none;
+    }
+    .plat::before { content: "> "; opacity: 0.6; }
+    a.plat:hover { opacity: 0.85; }
+    .m { color: var(--muted); }
+    .m b { color: var(--text); font-weight: 500; }
+
+    .empty, .note { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .note { margin-top: 20px; }
+
+    .footer {
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 28px;
+    }
+    .footer a { color: inherit; }
+
+    @media (max-width: 420px) {
+      body { padding: 32px 12px; }
+      .card { padding: 28px 18px 20px; }
+      .chip.big { font-size: 28px; }
+      .tile { min-height: 160px; padding: 10px; }
+      .chip { font-size: 11px; padding: 4px 7px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <button class="theme-toggle" id="themeToggle" type="button" aria-label="switch light/dark theme">☾</button>
+
+    <img class="avatar" src="assets/avatar.png" alt="a dove" width="64" height="64" />
+    <h1 class="name">soul stats</h1>
+    <p class="updated" id="updated">loading…</p>
+
+    <h2>followers</h2>
+    <div class="platforms" id="platforms"></div>
+
+    <h2>all posts</h2>
+    <div class="totals" id="totals"></div>
+
+    <h2>each post</h2>
+    <div id="posts"></div>
+
+    <p class="note" id="notes"></p>
+    <footer class="footer">soul · <a href="/">thesouldevotional.github.io</a></footer>
+  </main>
+
+  <script>
+    (function () {
+      var toggle = document.getElementById('themeToggle');
+      var root = document.documentElement;
+      function currentTheme() {
+        try {
+          var stored = localStorage.getItem('theme');
+          if (stored) return stored;
+        } catch (e) {}
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      function applyIcon(theme) { toggle.textContent = theme === 'dark' ? '☀' : '☾'; }
+      applyIcon(currentTheme());
+      toggle.addEventListener('click', function () {
+        var next = currentTheme() === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-theme', next);
+        try { localStorage.setItem('theme', next); } catch (e) {}
+        applyIcon(next);
+      });
+    })();
+
+    // metrics shown, in this order; Buffer only returns the ones each platform reports
+    var METRICS = [['views', 'views'], ['reach', 'reach'], ['likes', 'likes'], ['comments', 'comments'],
+                   ['shares', 'shares'], ['saves', 'saves'], ['follows', 'new follows']];
+    var PLATFORM = { instagram: 'p-gull', tiktok: 'p-night' };
+
+    function el(tag, cls, text) {
+      var e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text != null) e.textContent = text;
+      return e;
+    }
+    function num(n) { return n == null ? '–' : Math.round(n).toLocaleString('en-US'); }
+    function day(iso) {
+      return iso ? new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short',
+        hour: '2-digit', minute: '2-digit' }).toLowerCase() : '';
+    }
+
+    fetch('data.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+      document.getElementById('updated').textContent = 'updated ' + day(d.updated);
+      var sent = d.posts.filter(function (p) { return p.status === 'sent'; });
+
+      // followers and published posts per platform
+      var plat = document.getElementById('platforms');
+      ['instagram', 'tiktok'].forEach(function (name) {
+        var f = d.followers[name];
+        var t = el('a', 'tile ' + PLATFORM[name]);
+        t.href = d.profiles[name]; t.target = '_blank'; t.rel = 'noopener noreferrer';
+        t.appendChild(el('span', 'badge', '↗'));
+        t.appendChild(el('span', 'chip label', name));
+        t.appendChild(el('span', 'chip big', f ? num(f.count) : '–'));
+        t.appendChild(el('span', 'chip', 'followers' + (f && f.stale ? ' (last known)' : '')));
+        var n = sent.filter(function (p) { return p.platform === name; }).length;
+        t.appendChild(el('span', 'chip', n + (n === 1 ? ' post' : ' posts') + ' published'));
+        plat.appendChild(t);
+      });
+
+      // totals across every published post
+      var tot = document.getElementById('totals');
+      METRICS.forEach(function (m) {
+        var has = false, sum = 0;
+        sent.forEach(function (p) { if (p.metrics[m[0]] != null) { has = true; sum += p.metrics[m[0]]; } });
+        var s = el('div', 'stat');
+        s.appendChild(el('b', null, has ? num(sum) : '–'));
+        s.appendChild(el('span', null, m[1]));
+        tot.appendChild(s);
+      });
+
+      // one block per verse, a row per platform
+      var groups = [], byVerse = {};
+      d.posts.forEach(function (p) {
+        var key = p.verse || p.link || p.date;
+        if (!byVerse[key]) { byVerse[key] = { verse: p.verse, link: p.verse_link, palette: p.palette, date: p.date, rows: [] }; groups.push(byVerse[key]); }
+        byVerse[key].rows.push(p);
+      });
+      var box = document.getElementById('posts');
+      if (!groups.length) box.appendChild(el('p', 'empty', 'nothing published yet.'));
+      groups.forEach(function (g) {
+        var post = el('div', 'post');
+        post.appendChild(el('div', 'swatch p-' + (g.palette || 'fog')));
+        var body = el('div');
+        var title = el(g.link ? 'a' : 'span', 'verse', g.verse || 'post');
+        if (g.link) { title.href = g.link; title.target = '_blank'; title.rel = 'noopener noreferrer'; }
+        body.appendChild(title);
+        body.appendChild(el('div', 'date', day(g.date)));
+        g.rows.forEach(function (p) {
+          var row = el('div', 'row');
+          var chip = el(p.link ? 'a' : 'span', 'plat', p.platform);
+          if (p.link) { chip.href = p.link; chip.target = '_blank'; chip.rel = 'noopener noreferrer'; }
+          row.appendChild(chip);
+          if (p.status !== 'sent') {
+            row.appendChild(el('span', 'm', p.status));
+          } else {
+            var any = false;
+            METRICS.forEach(function (m) {
+              if (p.metrics[m[0]] == null) return;
+              any = true;
+              var s = el('span', 'm');
+              s.appendChild(el('b', null, num(p.metrics[m[0]])));
+              s.appendChild(document.createTextNode(' ' + m[1]));
+              row.appendChild(s);
+            });
+            if (!any) row.appendChild(el('span', 'm', 'numbers not in yet'));
+          }
+          body.appendChild(row);
+        });
+        post.appendChild(body);
+        box.appendChild(post);
+      });
+
+      var notes = [];
+      var ig = d.followers.instagram;
+      if (!ig) notes.push('instagram followers: not connected yet.');
+      else if (ig.token_days != null && ig.token_days < 15) notes.push('instagram access expires in ' + ig.token_days + ' days.');
+      (d.notes || []).forEach(function (n) { notes.push(n); });
+      document.getElementById('notes').textContent = notes.join(' ');
+    }).catch(function () {
+      document.getElementById('updated').textContent = 'could not load the numbers.';
+    });
+  </script>
+</body>
+</html>
