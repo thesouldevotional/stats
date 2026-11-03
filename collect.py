@@ -135,8 +135,15 @@ def main():
     except Exception as e:
         live_stories = []
         notes.append(f"instagram stories: {type(e).__name__}")
+    # Buffer sends the stories as one post each: the first is in posts.json, the others are folded into it
+    raw = buffer_posts()
+    when = lambda p: datetime.fromisoformat((p["sentAt"] or p["dueAt"]).replace("Z", "+00:00"))
+    main_stories = [p for p in raw if p["id"] in stories]
     posts = []
-    for p in buffer_posts():
+    for p in raw:
+        if p["id"] not in by_id and "/stories/" in (p["externalLink"] or ""):
+            if any(abs((when(p) - when(s)).total_seconds()) < 3600 for s in main_stories):
+                continue
         m = by_id.get(p["id"], {})
         metrics = {x["type"]: x["value"] for x in p.get("metrics") or []}
         if "likes" not in metrics and "reactions" in metrics:  # TikTok reports likes as reactions
@@ -160,7 +167,9 @@ def main():
         posts.append({
             "id": p["id"],
             "platform": "instagram stories" if p["id"] in stories else p["channelService"], "status": p["status"],
-            "date": p["sentAt"] or p["dueAt"], "link": p["externalLink"],
+            # Buffer has no link for the TikToks Ivana publishes herself: posts.json carries it under "links"
+            "date": p["sentAt"] or p["dueAt"],
+            "link": p["externalLink"] or (m.get("links") or {}).get(p["channelService"]),
             "verse": m.get("verse"), "verse_link": m.get("verse_link"), "palette": m.get("palette"),
             "metrics": metrics,
             "metrics_at": p.get("metricsUpdatedAt"),
