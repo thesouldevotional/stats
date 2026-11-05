@@ -167,7 +167,7 @@ def main():
         tiktok = tiktok_videos()
     except Exception as e:
         tiktok = {}
-        notes.append(f"tiktok posts: {type(e).__name__}")
+        notes.append(f"tiktok posts: {type(e).__name__} {getattr(e, 'code', '')} {getattr(e, 'url', '')}".strip())
     last_metrics = {x["id"]: x.get("metrics") or {} for x in last.get("posts") or []}
     raw = buffer_posts()
     when = lambda p: datetime.fromisoformat((p["sentAt"] or p["dueAt"]).replace("Z", "+00:00"))
