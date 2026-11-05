@@ -102,6 +102,33 @@ def tiktok_followers():
     return int(m.group(1)) if m else None
 
 
+def tiktok_videos():
+    """{video id: metrics} from TikTok's public embeds. Buffer has no numbers for the TikToks Ivana
+    publishes herself: the creator embed lists the video ids, each video's embed has its counts."""
+    ua = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+                        "(KHTML, like Gecko) Chrome/130 Safari/537.36"}
+    ids = set(re.findall(r'"id":"(\d{19})","desc"', get("https://www.tiktok.com/embed/@thesouldevotional", ua)))
+    out = {}
+    for vid in ids:
+        h = get(f"https://www.tiktok.com/embed/v2/{vid}", ua)
+        m = {}
+        for src, dst in [("playCount", "views"), ("diggCount", "likes"), ("commentCount", "comments"),
+                         ("shareCount", "shares"), ("collectCount", "saves")]:
+            x = re.search(rf'"{src}":(\d+),"(?:shareCount|playCount|commentCount|isOriginal|collectCount)', h)
+            if x:
+                m[dst] = int(x.group(1))
+        if m:
+            out[vid] = m
+    return out
+
+
+def tiktok_match(videos, sent):
+    """The video uploaded closest after the post time (a video id's upper 32 bits are its upload time)."""
+    t = sent.timestamp()
+    near = [v for v in videos if 0 <= (int(v) >> 32) - t < 1800]
+    return min(near, key=lambda v: int(v) >> 32) if near else None
+
+
 def main():
     try:
         last = json.loads(get(LIVE))
@@ -136,6 +163,12 @@ def main():
         live_stories = []
         notes.append(f"instagram stories: {type(e).__name__}")
     # Buffer sends the stories as one post each: the first is in posts.json, the others are folded into it
+    try:
+        tiktok = tiktok_videos()
+    except Exception as e:
+        tiktok = {}
+        notes.append(f"tiktok posts: {type(e).__name__}")
+    last_metrics = {x["id"]: x.get("metrics") or {} for x in last.get("posts") or []}
     raw = buffer_posts()
     when = lambda p: datetime.fromisoformat((p["sentAt"] or p["dueAt"]).replace("Z", "+00:00"))
     main_stories = [p for p in raw if p["id"] in stories]
@@ -148,6 +181,13 @@ def main():
         metrics = {x["type"]: x["value"] for x in p.get("metrics") or []}
         if "likes" not in metrics and "reactions" in metrics:  # TikTok reports likes as reactions
             metrics["likes"] = metrics.pop("reactions")
+        link = p["externalLink"] or (m.get("links") or {}).get(p["channelService"])
+        if p["channelService"] == "tiktok" and p["sentAt"] and not metrics:
+            vid = link.rsplit("/", 1)[-1] if link else tiktok_match(tiktok, when(p))
+            if vid and not link:
+                link = f"{PROFILES['tiktok']}/video/{vid}"
+            # TikTok unreachable: keep the last numbers seen
+            metrics = tiktok.get(vid) or last_metrics.get(p["id"], {})
         if p["id"] in stories:
             if "comments" in metrics:  # Buffer calls story replies comments
                 metrics["replies"] = metrics.pop("comments")
@@ -169,7 +209,7 @@ def main():
             "platform": "instagram stories" if p["id"] in stories else p["channelService"], "status": p["status"],
             # Buffer has no link for the TikToks Ivana publishes herself: posts.json carries it under "links"
             "date": p["sentAt"] or p["dueAt"],
-            "link": p["externalLink"] or (m.get("links") or {}).get(p["channelService"]),
+            "link": link,
             "verse": m.get("verse"), "verse_link": m.get("verse_link"), "palette": m.get("palette"),
             "metrics": metrics,
             "metrics_at": p.get("metricsUpdatedAt"),
