@@ -172,8 +172,21 @@ def main():
     raw = buffer_posts()
     when = lambda p: datetime.fromisoformat((p["sentAt"] or p["dueAt"]).replace("Z", "+00:00"))
     main_stories = [p for p in raw if p["id"] in stories]
+    # with notification scheduling, the post Ivana publishes from Buffer's app comes back as a new sent post
+    # with the link and the numbers, while the scheduled one stays "sent" with neither: the copy takes its place
+    replaced = set()
+    for p in raw:
+        if p["id"] in by_id and p["id"] not in stories and p["sentAt"] and not p["externalLink"]:
+            copy = next((q for q in raw if q["id"] not in by_id and q["channelService"] == p["channelService"]
+                         and q["sentAt"] and q["externalLink"] and "/stories/" not in q["externalLink"]
+                         and 0 <= (when(q) - when(p)).total_seconds() < 3600), None)
+            if copy:
+                by_id[copy["id"]] = by_id[p["id"]]
+                replaced.add(p["id"])
     posts = []
     for p in raw:
+        if p["id"] in replaced:
+            continue
         if p["id"] not in by_id and "/stories/" in (p["externalLink"] or ""):
             if any(abs((when(p) - when(s)).total_seconds()) < 3600 for s in main_stories):
                 continue
