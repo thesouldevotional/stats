@@ -17,11 +17,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Upload and deploy run as two jobs: when deploy-pages starts right after the
+  # upload in the same job, it sometimes finds no artifact yet ("Found 0 artifact(s)").
   build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - name: collect
@@ -32,5 +31,12 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - id: deploy
         uses: actions/deploy-pages@v5
