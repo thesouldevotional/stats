@@ -5,7 +5,7 @@ Runs in the GitHub Action every 6 hours (and locally for testing):
 
     BUFFER_API_KEY=... [IG_TOKEN=...] python3 collect.py
 
-- Buffer API: published posts, their links and metrics.
+- Buffer API: published posts, their links and metrics (Instagram; TikToks from TikTok Studio come from posts.json).
 - Instagram followers: Graph API through the linked Facebook Page (IG_TOKEN, Page token).
 - TikTok followers: the public profile page (TikTok's own API needs an app review).
 A source that fails keeps its last value from the live data.json, marked stale.
@@ -226,6 +226,25 @@ def main():
             "verse": m.get("verse"), "verse_link": m.get("verse_link"), "palette": m.get("palette"),
             "metrics": metrics,
             "metrics_at": p.get("metricsUpdatedAt"),
+        })
+    # since 2026-11-25 the TikToks are scheduled in TikTok Studio, not Buffer: posts.json gives their time
+    # under "tiktok_studio" and, once out, the link under "links"
+    for m in mapping:
+        if not m.get("tiktok_studio"):
+            continue
+        due = datetime.fromisoformat(m["tiktok_studio"].replace("Z", "+00:00"))
+        link = (m.get("links") or {}).get("tiktok")
+        vid = link.rsplit("/", 1)[-1] if link else tiktok_match(tiktok, due)
+        pid = "tiktok-studio-" + m["tiktok_studio"]
+        out = bool(vid) or datetime.now(timezone.utc) > due
+        posts.append({
+            "id": pid, "platform": "tiktok", "status": "sent" if out else "scheduled",
+            "date": m["tiktok_studio"],
+            "link": link or (f"{PROFILES['tiktok']}/video/{vid}" if vid else None),
+            "verse": m.get("verse"), "verse_link": m.get("verse_link"), "palette": m.get("palette"),
+            # TikTok unreachable: keep the last numbers seen
+            "metrics": (tiktok.get(vid) if vid else None) or last_metrics.get(pid, {}) if out else {},
+            "metrics_at": None,
         })
     posts.sort(key=lambda x: x["date"] or "", reverse=True)
 
